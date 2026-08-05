@@ -106,6 +106,20 @@ const postToSlack = (hookUrl, msg) => {
 };
 
 /**
+ * TEMPLATEシートをコピーして新しいシートを作成する
+ * @param {string} name - 新しいシートの名前
+ * @returns {string} 作成したシートのURL
+ */
+const createSheetFromTemplate = (name) => {
+  const newSheet = SHEET.getSheetByName("TEMPLATE").copyTo(SHEET);
+  newSheet.setName(name);
+  newSheet.getRange("A2").setValue(name);
+  const sheetId = newSheet.getSheetId();
+  return `${SHEET.getUrl()}?gid=${sheetId}`;
+};
+
+/**
+ * 【定期実行】
  * 翌週の終日イベントをSlackに通知する
  */
 const checkNextTask = () => {
@@ -113,7 +127,11 @@ const checkNextTask = () => {
   if (events.length < 1) {
     return;
   }
-  const titles = events.map((event) => event.getTitle());
+  const result = events.map((event) => {
+    const title = event.getTitle();
+    const shtUrl = createSheetFromTemplate(title);
+    return { title: title, url: shtUrl };
+  });
   const start = events[0].getStartTime();
   const dateStr = Utilities.formatDate(
     start,
@@ -122,9 +140,23 @@ const checkNextTask = () => {
   );
   const msg = [
     `<!channel> ${dateStr}に以下の予定があります。`,
-    ...titles.map((t) => `• ${t}`),
+    ...result.map((t) => `• <${t.url}|${t.title}>`),
     "",
-    `<${SHEET_URL}|シート>を確認しておいてください。`,
+    "各シートを確認しておいてください。",
   ].join("\n");
   postToSlack(WEBHOOK_URL, msg);
+};
+
+/**
+ * 【定期実行】
+ * 現時点のタスクをSlackに通知する
+ */
+const checkCurrentTask = () => {
+  const events = getAllDayEventsWithinMonth();
+  if (events.length < 1) {
+    return;
+  }
+  events.forEach((event) => {
+    const sheet = getSheetByName(event.getTitle());
+  });
 };
