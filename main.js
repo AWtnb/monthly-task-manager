@@ -11,6 +11,8 @@ const BOT_USER_TOKEN = getProperty("BOT_USER_TOKEN");
 const CHANNEL_ID = getProperty("CHANNEL_ID");
 const USER_ID = getProperty("USER_ID");
 const SHEET_ID = getProperty("SHEET_ID");
+const SHEET_URL = getProperty("SHEET_URL");
+const WEBHOOK_URL = getProperty("WEBHOOK_URL");
 const SHEET = SpreadsheetApp.openById(SHEET_ID);
 
 /**
@@ -103,8 +105,26 @@ const postToSlack = (hookUrl, msg) => {
   UrlFetchApp.fetch(hookUrl, options);
 };
 
+/**
+ * 翌週の終日イベントをSlackに通知する
+ */
 const checkNextTask = () => {
-  getAllDayEventsNextWeek().forEach((event) => {
-    event;
-  });
+  const events = getAllDayEventsNextWeek();
+  if (events.length < 1) {
+    return;
+  }
+  const titles = events.map((event) => event.getTitle());
+  const start = events[0].getStartTime();
+  const dateStr = Utilities.formatDate(
+    start,
+    Session.getScriptTimeZone(),
+    "M月d日",
+  );
+  const msg = [
+    `<!channel> ${dateStr}に以下の予定があります。`,
+    ...titles.map((t) => `• ${t}`),
+    "",
+    `<${SHEET_URL}|シート>を確認しておいてください。`,
+  ].join("\n");
+  postToSlack(WEBHOOK_URL, msg);
 };
