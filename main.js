@@ -8,6 +8,7 @@ const getProperty = (key) => {
 };
 
 const BOT_USER_TOKEN = getProperty("BOT_USER_TOKEN");
+const CALENDAR_ID = getProperty("CALENDAR_ID");
 const CHANNEL_ID = getProperty("CHANNEL_ID");
 const USER_ID = getProperty("USER_ID");
 const SHEET_ID = getProperty("SHEET_ID");
@@ -98,13 +99,16 @@ const postToSlack = (hookUrl, msg) => {
 
 /**
  * TEMPLATEシートをコピーして新しいシートを作成する
- * @param {string} name - 新しいシートの名前
+ * @param {GoogleAppsScript.Calendar.CalendarEvent} event - 新しいシートの名前
  * @returns {string} 作成したシートのURL
  */
-const createSheetFromTemplate = (name) => {
+const createSheetFromTemplate = (event) => {
+  const title = event.getTitle();
+  const start = event.getStartTime();
   const newSheet = SHEET.getSheetByName("TEMPLATE").copyTo(SHEET);
-  newSheet.setName(name);
-  newSheet.getRange("A2").setValue(name);
+  newSheet.setName(title);
+  newSheet.getRange("A2").setValue(title);
+  newSheet.getRange("A4").setValue(start);
   const sheetId = newSheet.getSheetId();
   return `${SHEET.getUrl()}?gid=${sheetId}`;
 };
@@ -114,13 +118,17 @@ const createSheetFromTemplate = (name) => {
  * 翌週の終日イベントをSlackに通知する
  */
 const checkNextTask = () => {
-  const events = getAllDayEventsNextWeek();
+  const calendar = getCalendarById(CALENDAR_ID);
+  if (!calendar) {
+    return;
+  }
+  const events = getAllDayEventsNextWeek(calendar);
   if (events.length < 1) {
     return;
   }
   const result = events.map((event) => {
     const title = event.getTitle();
-    const shtUrl = createSheetFromTemplate(title);
+    const shtUrl = createSheetFromTemplate(event);
     return { title: title, url: shtUrl };
   });
   const start = events[0].getStartTime();
@@ -139,15 +147,91 @@ const checkNextTask = () => {
 };
 
 /**
+ * シートから担当者ごと・期限日ごとに未了工程を集約する
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
+ * @param {number} dataStartRow - データ開始行（1始まり）
+ * @returns {Map<string, Map<string, string[]>>} 担当者 → 期限日 → タスク一覧
+ */
+const collectPendingTasks = (sheet, dataStartRow) => {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < dataStartRow) return new Map();
+
+  const data = sheet
+    .getRange(dataStartRow, 1, lastRow - dataStartRow + 1, 7)
+    .getValues();
+
+  const result = new Map();
+
+  for (const row of data) {
+    const [task, done, person, , , , deadline] = row;
+    if (!person || done !== false) continue;
+
+    const deadlineKey = Utilities.formatDate(
+      new Date(deadline),
+      Session.getScriptTimeZone(),
+      "yyyy/MM/dd",
+    );
+
+    if (!result.has(person)) result.set(person, new Map());
+    const byDeadline = result.get(person);
+
+    if (!byDeadline.has(deadlineKey)) byDeadline.set(deadlineKey, []);
+    byDeadline.get(deadlineKey).push(task);
+  }
+
+  return result;
+};
+
+const SLACK_ID_MAPPING = (() => {
+  const map = new Map();
+  const sheet = getSheetByName("MEMBER");
+  if (!sheet) return map;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return map;
+
+  const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  for (const [name, slackId] of data) {
+    if (!name) continue;
+    map.set(name, slackId);
+  }
+
+  return map;
+})();
+/**
+ * 各担当者について、期限日ごとの未了工程をポストする
+ * @param {string} title - タイトル
+ * @param {Map<string, Map<string, string[]>>} tasks - 担当者 → 期限日 → タスク一覧
+ */
+const postCurrentTask = (title, tasks) => {
+  const msgLines = [`${title} 未完了タスク一覧`];
+  for (const [person, byDeadline] of tasks) {
+    const slackId = SLACK_ID_MAPPING.get(person);
+    const markup = slackId ? `<${slackId}|${person}>` : person;
+    msgLines.push(`\n■${markup}担当：`);
+    for (const [deadline, taskList] of byDeadline) {
+      msgLines.push(`${deadline}〆`);
+      taskList.forEach((task) => {
+        msgLines.push(`  • ${task}`);
+      });
+    }
+  }
+  postToSlack(WEBHOOK_URL, msgLines.join("\n"));
+};
+
+/**
  * 【定期実行】
  * 現時点のタスクをSlackに通知する
  */
 const checkCurrentTask = () => {
-  const events = getAllDayEventsWithinMonth();
-  if (events.length < 1) {
+  const calendar = getCalendarById(CALENDAR_ID);
+  if (!calendar) {
     return;
   }
-  events.forEach((event) => {
-    const sheet = getSheetByName(event.getTitle());
+  getAllDayEventsWithinMonth(calendar).forEach((event) => {
+    const title = event.getTitle();
+    const sheet = getSheetByName(title);
+    if (!sheet) return;
+    const tasks = collectPendingTasks(sheet, 7);
   });
 };
