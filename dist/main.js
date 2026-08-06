@@ -174,7 +174,7 @@ const postCurrentTask = (title, tasks) => {
     const msgLines = [`${title} 未完了タスク一覧`];
     for (const [person, byDeadline] of tasks) {
         const slackId = SLACK_ID_MAPPING.get(person);
-        const markup = slackId ? `<${slackId}|${person}>` : person;
+        const markup = slackId ? `<@${slackId}>` : person;
         msgLines.push(`\n■${markup}担当：`);
         for (const [deadline, taskList] of byDeadline) {
             msgLines.push(`${deadline}〆`);
