@@ -66,15 +66,6 @@ const getAllDayEventsWithinMonth = (calendar) => {
 };
 
 /**
- * シート名からシートオブジェクトを取得する
- * @param {string} sheetName - シート名
- * @returns {GoogleAppsScript.Spreadsheet.Sheet | null} シートオブジェクト
- */
-const getSheetByName = (sheetName) => {
-  return SHEET.getSheetByName(sheetName) ?? null;
-};
-
-/**
  * MEMBERSシートから人名とSlack IDのMapを生成する
  * @returns {Map<string, string>} 人名をキー、Slack IDを値とするMap
  */
