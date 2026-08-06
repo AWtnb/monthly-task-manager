@@ -141,11 +141,12 @@ const checkNextTask = () => {
   ].join("\n");
   postToSlack(WEBHOOK_URL, msg);
 };
+
 /**
  * シートから担当者ごと・期限日ごとに未了工程を集約する
  * @param sheet - 対象シート
  * @param dataStartRow - データ開始行（1始まり）
- * @returns 担当者 → 期限日 → タスク一覧
+ * @returns 担当者 → 期限日（昇順） → タスク一覧
  */
 const collectPendingTasks = (
   sheet: GoogleAppsScript.Spreadsheet.Sheet,
@@ -178,15 +179,30 @@ const collectPendingTasks = (
       "yyyy/MM/dd",
     );
 
-    if (!result.has(person)) result.set(person, new Map<string, string[]>());
-    const byDeadline = result.get(person)!;
+    if (!result.has(person)) {
+      result.set(person, new Map<string, string[]>());
+    }
 
-    if (!byDeadline.has(deadlineKey)) byDeadline.set(deadlineKey, []);
+    const byDeadline = result.get(person)!;
+    if (!byDeadline.has(deadlineKey)) {
+      byDeadline.set(deadlineKey, []);
+    }
     byDeadline.get(deadlineKey)!.push(task);
+  }
+
+  // 各担当者のdeadlineをキーの文字列昇順（= 日付昇順）でソート
+  for (const [person, byDeadline] of result) {
+    const sorted = new Map(
+      [...byDeadline.entries()].sort(([a], [b]) =>
+        a < b ? -1 : a > b ? 1 : 0,
+      ),
+    );
+    result.set(person, sorted);
   }
 
   return result;
 };
+
 const SLACK_ID_MAPPING = (() => {
   const map = new Map<string, string>();
   const sheet = getSheetByName("MEMBER");

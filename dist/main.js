@@ -125,7 +125,7 @@ const checkNextTask = () => {
  * シートから担当者ごと・期限日ごとに未了工程を集約する
  * @param sheet - 対象シート
  * @param dataStartRow - データ開始行（1始まり）
- * @returns 担当者 → 期限日 → タスク一覧
+ * @returns 担当者 → 期限日（昇順） → タスク一覧
  */
 const collectPendingTasks = (sheet, dataStartRow) => {
     const lastRow = sheet.getLastRow();
@@ -140,12 +140,19 @@ const collectPendingTasks = (sheet, dataStartRow) => {
         if (!person || done !== false)
             continue;
         const deadlineKey = Utilities.formatDate(new Date(deadline), Session.getScriptTimeZone(), "yyyy/MM/dd");
-        if (!result.has(person))
+        if (!result.has(person)) {
             result.set(person, new Map());
+        }
         const byDeadline = result.get(person);
-        if (!byDeadline.has(deadlineKey))
+        if (!byDeadline.has(deadlineKey)) {
             byDeadline.set(deadlineKey, []);
+        }
         byDeadline.get(deadlineKey).push(task);
+    }
+    // 各担当者のdeadlineをキーの文字列昇順（= 日付昇順）でソート
+    for (const [person, byDeadline] of result) {
+        const sorted = new Map([...byDeadline.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
+        result.set(person, sorted);
     }
     return result;
 };
