@@ -79,19 +79,16 @@ const createSheetFromTemplate = (event) => {
 };
 /**
  * SlackのIncoming WebhookでメッセージをPOSTする
- * @param hookUrl - Webhook URL
- * @param msg - 投稿するメッセージ
+ * @param webhookUrl - Webhook URL
+ * @param blocks: object[] - 投稿するメッセージのSlack Bot Kit形式データ
  */
-const postToSlack = (hookUrl, msg) => {
-    const payload = {
-        text: msg,
-    };
-    const options = {
+const postToSlack = (webhookUrl, blocks) => {
+    const payload = JSON.stringify({ blocks });
+    UrlFetchApp.fetch(webhookUrl, {
         method: "post",
         contentType: "application/json",
-        payload: JSON.stringify(payload),
-    };
-    UrlFetchApp.fetch(hookUrl, options);
+        payload,
+    });
 };
 /**
  * 【定期実行】
@@ -106,20 +103,71 @@ const checkNextTask = () => {
     if (events.length < 1) {
         return;
     }
-    const result = events.map((event) => {
+    const result = events
+        .filter((event) => {
+        const title = event.getTitle();
+        return !getSheetByName(title);
+    })
+        .map((event) => {
         const title = event.getTitle();
         const shtUrl = createSheetFromTemplate(event);
         return { title: title, url: shtUrl };
     });
+    if (result.length < 1) {
+        return;
+    }
     const start = events[0].getStartTime();
     const dateStr = Utilities.formatDate(start, Session.getScriptTimeZone(), "M月d日");
-    const msg = [
-        `<!channel> ${dateStr}に以下の予定があります。`,
-        ...result.map((t) => `• <${t.url}|${t.title}>`),
-        "",
-        "各シートを確認しておいてください。",
-    ].join("\n");
-    postToSlack(WEBHOOK_URL, msg);
+    const blocks = [];
+    blocks.push({
+        type: "header",
+        text: {
+            type: "plain_text",
+            text: `${dateStr}校了予定`,
+            emoji: true,
+        },
+        level: 1,
+    });
+    const linkListElems = result.map((r) => {
+        return {
+            type: "rich_text_section",
+            elements: [
+                {
+                    type: "link",
+                    url: r.url,
+                    text: r.title,
+                    style: {
+                        bold: true,
+                    },
+                },
+            ],
+        };
+    });
+    blocks.push({
+        type: "rich_text",
+        elements: [
+            {
+                type: "rich_text_section",
+                elements: [
+                    {
+                        type: "broadcast",
+                        range: "channel",
+                    },
+                    {
+                        type: "text",
+                        text: "以下の校了予定があります。各シートを確認しておきましょう。\n",
+                    },
+                ],
+            },
+            {
+                type: "rich_text_list",
+                style: "bullet",
+                indent: 0,
+                elements: linkListElems,
+            },
+        ],
+    });
+    postToSlack(WEBHOOK_URL, blocks);
 };
 /**
  * シートから担当者ごと・期限日ごとに未了工程を集約する
@@ -207,20 +255,6 @@ const buildPendingTasksBlocks = (pendingTasks) => {
     return blocks;
 };
 /**
- * 未了タスクをSlackにBlock Kit形式で送信する
- * @param webhookUrl - Slack Incoming Webhook URL
- * @param pendingTasks - collectPendingTasksの戻り値
- */
-const postPendingTasksToSlack = (webhookUrl, pendingTasks) => {
-    const blocks = buildPendingTasksBlocks(pendingTasks);
-    const payload = JSON.stringify({ blocks });
-    UrlFetchApp.fetch(webhookUrl, {
-        method: "post",
-        contentType: "application/json",
-        payload,
-    });
-};
-/**
  * 【定期実行】
  * 現時点のタスクをSlackに通知する
  */
@@ -237,6 +271,6 @@ const checkCurrentTask = () => {
         const tasks = collectPendingTasks(sheet, 7);
         if (tasks.size === 0)
             return;
-        postPendingTasksToSlack(WEBHOOK_URL, tasks);
+        postToSlack(WEBHOOK_URL, buildPendingTasksBlocks(tasks));
     });
 };
