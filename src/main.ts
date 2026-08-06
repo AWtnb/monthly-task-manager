@@ -9,12 +9,8 @@ const getProperty = (key: string): string => {
   return value;
 };
 
-const BOT_USER_TOKEN = getProperty("BOT_USER_TOKEN");
 const CALENDAR_ID = getProperty("CALENDAR_ID");
-const CHANNEL_ID = getProperty("CHANNEL_ID");
-const USER_ID = getProperty("USER_ID");
 const SHEET_ID = getProperty("SHEET_ID");
-const SHEET_URL = getProperty("SHEET_URL");
 const WEBHOOK_URL = getProperty("WEBHOOK_URL");
 const SHEET = SpreadsheetApp.openById(SHEET_ID);
 
@@ -75,21 +71,6 @@ const getAllDayEventsWithinMonth = (
     .filter((event) => event.isAllDayEvent());
 };
 
-/**
- * MEMBERSシートから人名とSlack IDのMapを生成する
- * @returns 人名をキー、Slack IDを値とするMap
- */
-const getMembersMap = (): Map<string, string> => {
-  const sheet = getSheetByName("MEMBERS");
-  if (!sheet) throw new Error("MEMBERS sheet not found");
-
-  const rows = sheet.getDataRange().getValues() as [string, string][];
-
-  return rows.slice(1).reduce((map, [name, slackId]) => {
-    map.set(name, slackId);
-    return map;
-  }, new Map<string, string>());
-};
 /**
  * SlackのIncoming WebhookでメッセージをPOSTする
  * @param hookUrl - Webhook URL
