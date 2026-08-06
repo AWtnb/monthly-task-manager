@@ -1,10 +1,12 @@
 /**
  * プロパティサービスから値を取得する
- * @param {string} key - キー名
- * @returns {string} 取得した値
+ * @param key - キー名
+ * @returns 取得した値
  */
-const getProperty = (key) => {
-  return PropertiesService.getScriptProperties().getProperty(key);
+const getProperty = (key: string): string => {
+  const value = PropertiesService.getScriptProperties().getProperty(key);
+  if (!value) throw new Error(`Property not found: ${key}`);
+  return value;
 };
 
 const BOT_USER_TOKEN = getProperty("BOT_USER_TOKEN");
@@ -18,28 +20,34 @@ const SHEET = SpreadsheetApp.openById(SHEET_ID);
 
 /**
  * シート名からシートオブジェクトを取得する
- * @param {string} sheetName - シート名
- * @returns {GoogleAppsScript.Spreadsheet.Sheet | null} シートオブジェクト
+ * @param sheetName - シート名
+ * @returns シートオブジェクト
  */
-const getSheetByName = (sheetName) => {
+const getSheetByName = (
+  sheetName: string,
+): GoogleAppsScript.Spreadsheet.Sheet | null => {
   return SHEET.getSheetByName(sheetName) ?? null;
 };
 
 /**
  * カレンダーIDからカレンダーオブジェクトを取得する
- * @param {string} calendarId - カレンダーID
- * @returns {GoogleAppsScript.Calendar.Calendar | null} カレンダーオブジェクト
+ * @param calendarId - カレンダーID
+ * @returns カレンダーオブジェクト
  */
-const getCalendarById = (calendarId) => {
+const getCalendarById = (
+  calendarId: string,
+): GoogleAppsScript.Calendar.Calendar | null => {
   return CalendarApp.getCalendarById(calendarId) ?? null;
 };
 
 /**
  * カレンダーから1週間後の終日イベント一覧を取得する
- * @param {GoogleAppsScript.Calendar.Calendar} calendar - カレンダーオブジェクト
- * @returns {GoogleAppsScript.Calendar.CalendarEvent[]} 終日イベントの配列
+ * @param calendar - カレンダーオブジェクト
+ * @returns 終日イベントの配列
  */
-const getAllDayEventsNextWeek = (calendar) => {
+const getAllDayEventsNextWeek = (
+  calendar: GoogleAppsScript.Calendar.Calendar,
+): GoogleAppsScript.Calendar.CalendarEvent[] => {
   const now = new Date();
   const nextWeek = new Date(now);
   nextWeek.setDate(now.getDate() + 7);
@@ -48,13 +56,14 @@ const getAllDayEventsNextWeek = (calendar) => {
     .getEventsForDay(nextWeek)
     .filter((event) => event.isAllDayEvent());
 };
-
 /**
  * カレンダーから過去31日以内（当日除く）の終日イベントを取得する
- * @param {GoogleAppsScript.Calendar.Calendar} calendar - カレンダーオブジェクト
- * @returns {GoogleAppsScript.Calendar.CalendarEvent[]} 終日イベントの配列
+ * @param calendar - カレンダーオブジェクト
+ * @returns 終日イベントの配列
  */
-const getAllDayEventsWithinMonth = (calendar) => {
+const getAllDayEventsWithinMonth = (
+  calendar: GoogleAppsScript.Calendar.Calendar,
+): GoogleAppsScript.Calendar.CalendarEvent[] => {
   const now = new Date();
   const start = new Date(now);
   start.setDate(now.getDate() - 31);
@@ -68,29 +77,30 @@ const getAllDayEventsWithinMonth = (calendar) => {
 
 /**
  * MEMBERSシートから人名とSlack IDのMapを生成する
- * @returns {Map<string, string>} 人名をキー、Slack IDを値とするMap
+ * @returns 人名をキー、Slack IDを値とするMap
  */
-const getMembersMap = () => {
+const getMembersMap = (): Map<string, string> => {
   const sheet = getSheetByName("MEMBERS");
-  const rows = sheet.getDataRange().getValues();
+  if (!sheet) throw new Error("MEMBERS sheet not found");
+
+  const rows = sheet.getDataRange().getValues() as [string, string][];
 
   return rows.slice(1).reduce((map, [name, slackId]) => {
     map.set(name, slackId);
     return map;
-  }, new Map());
+  }, new Map<string, string>());
 };
-
 /**
  * SlackのIncoming WebhookでメッセージをPOSTする
- * @param {string} hookUrl - Webhook URL
- * @param {string} msg - 投稿するメッセージ
+ * @param hookUrl - Webhook URL
+ * @param msg - 投稿するメッセージ
  */
-const postToSlack = (hookUrl, msg) => {
+const postToSlack = (hookUrl: string, msg: string): void => {
   const payload = {
     text: msg,
   };
-  const options = {
-    method: "POST",
+  const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
+    method: "post",
     contentType: "application/json",
     payload: JSON.stringify(payload),
   };
@@ -99,13 +109,18 @@ const postToSlack = (hookUrl, msg) => {
 
 /**
  * TEMPLATEシートをコピーして新しいシートを作成する
- * @param {GoogleAppsScript.Calendar.CalendarEvent} event - 新しいシートの名前
- * @returns {string} 作成したシートのURL
+ * @param event - カレンダーイベント
+ * @returns 作成したシートのURL
  */
-const createSheetFromTemplate = (event) => {
+const createSheetFromTemplate = (
+  event: GoogleAppsScript.Calendar.CalendarEvent,
+): string => {
   const title = event.getTitle();
   const start = event.getStartTime();
-  const newSheet = SHEET.getSheetByName("TEMPLATE").copyTo(SHEET);
+  const template = SHEET.getSheetByName("TEMPLATE");
+  if (!template) throw new Error("TEMPLATE sheet not found");
+
+  const newSheet = template.copyTo(SHEET);
   newSheet.setName(title);
   newSheet.getRange("A2").setValue(title);
   newSheet.getRange("A4").setValue(start);
@@ -145,22 +160,32 @@ const checkNextTask = () => {
   ].join("\n");
   postToSlack(WEBHOOK_URL, msg);
 };
-
 /**
  * シートから担当者ごと・期限日ごとに未了工程を集約する
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
- * @param {number} dataStartRow - データ開始行（1始まり）
- * @returns {Map<string, Map<string, string[]>>} 担当者 → 期限日 → タスク一覧
+ * @param sheet - 対象シート
+ * @param dataStartRow - データ開始行（1始まり）
+ * @returns 担当者 → 期限日 → タスク一覧
  */
-const collectPendingTasks = (sheet, dataStartRow) => {
+const collectPendingTasks = (
+  sheet: GoogleAppsScript.Spreadsheet.Sheet,
+  dataStartRow: number,
+): Map<string, Map<string, string[]>> => {
   const lastRow = sheet.getLastRow();
   if (lastRow < dataStartRow) return new Map();
 
   const data = sheet
     .getRange(dataStartRow, 1, lastRow - dataStartRow + 1, 7)
-    .getValues();
+    .getValues() as [
+    string,
+    boolean,
+    string,
+    unknown,
+    unknown,
+    unknown,
+    Date,
+  ][];
 
-  const result = new Map();
+  const result = new Map<string, Map<string, string[]>>();
 
   for (const row of data) {
     const [task, done, person, , , , deadline] = row;
@@ -172,25 +197,27 @@ const collectPendingTasks = (sheet, dataStartRow) => {
       "yyyy/MM/dd",
     );
 
-    if (!result.has(person)) result.set(person, new Map());
-    const byDeadline = result.get(person);
+    if (!result.has(person)) result.set(person, new Map<string, string[]>());
+    const byDeadline = result.get(person)!;
 
     if (!byDeadline.has(deadlineKey)) byDeadline.set(deadlineKey, []);
-    byDeadline.get(deadlineKey).push(task);
+    byDeadline.get(deadlineKey)!.push(task);
   }
 
   return result;
 };
-
 const SLACK_ID_MAPPING = (() => {
-  const map = new Map();
+  const map = new Map<string, string>();
   const sheet = getSheetByName("MEMBER");
   if (!sheet) return map;
 
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return map;
 
-  const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues() as [
+    string,
+    string,
+  ][];
   for (const [name, slackId] of data) {
     if (!name) continue;
     map.set(name, slackId);
@@ -198,12 +225,16 @@ const SLACK_ID_MAPPING = (() => {
 
   return map;
 })();
+
 /**
  * 各担当者について、期限日ごとの未了工程をポストする
- * @param {string} title - タイトル
- * @param {Map<string, Map<string, string[]>>} tasks - 担当者 → 期限日 → タスク一覧
+ * @param title - タイトル
+ * @param tasks - 担当者 → 期限日 → タスク一覧
  */
-const postCurrentTask = (title, tasks) => {
+const postCurrentTask = (
+  title: string,
+  tasks: Map<string, Map<string, string[]>>,
+): void => {
   const msgLines = [`${title} 未完了タスク一覧`];
   for (const [person, byDeadline] of tasks) {
     const slackId = SLACK_ID_MAPPING.get(person);
@@ -233,5 +264,6 @@ const checkCurrentTask = () => {
     const sheet = getSheetByName(title);
     if (!sheet) return;
     const tasks = collectPendingTasks(sheet, 7);
+    postCurrentTask(title, tasks);
   });
 };

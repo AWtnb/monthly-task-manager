@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "commonjs",
+    "lib": ["ES2019"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "types": ["google-apps-script"]
+  },
+  "include": ["src/**/*.ts"]
+}
