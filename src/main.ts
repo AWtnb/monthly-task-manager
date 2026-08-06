@@ -52,6 +52,7 @@ const getAllDayEventsNextWeek = (
     .getEventsForDay(nextWeek)
     .filter((event) => event.isAllDayEvent());
 };
+
 /**
  * カレンダーから過去31日以内（当日除く）の終日イベントを取得する
  * @param calendar - カレンダーオブジェクト
@@ -69,23 +70,6 @@ const getAllDayEventsWithinMonth = (
   return calendar
     .getEvents(start, today)
     .filter((event) => event.isAllDayEvent());
-};
-
-/**
- * SlackのIncoming WebhookでメッセージをPOSTする
- * @param hookUrl - Webhook URL
- * @param msg - 投稿するメッセージ
- */
-const postToSlack = (hookUrl: string, msg: string): void => {
-  const payload = {
-    text: msg,
-  };
-  const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify(payload),
-  };
-  UrlFetchApp.fetch(hookUrl, options);
 };
 
 /**
@@ -107,6 +91,23 @@ const createSheetFromTemplate = (
   newSheet.getRange("A4").setValue(start);
   const sheetId = newSheet.getSheetId();
   return `${SHEET.getUrl()}?gid=${sheetId}`;
+};
+
+/**
+ * SlackのIncoming WebhookでメッセージをPOSTする
+ * @param hookUrl - Webhook URL
+ * @param msg - 投稿するメッセージ
+ */
+const postToSlack = (hookUrl: string, msg: string): void => {
+  const payload = {
+    text: msg,
+  };
+  const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+  };
+  UrlFetchApp.fetch(hookUrl, options);
 };
 
 /**
@@ -224,27 +225,65 @@ const SLACK_ID_MAPPING = (() => {
 })();
 
 /**
- * 各担当者について、期限日ごとの未了工程をポストする
- * @param title - タイトル
- * @param tasks - 担当者 → 期限日 → タスク一覧
+ * collectPendingTasksの結果をSlack Block Kit形式に変換する
+ * @param pendingTasks - 担当者 → 期限日（昇順） → タスク一覧
+ * @returns Slack Block Kit の blocks 配列
  */
-const postCurrentTask = (
-  title: string,
-  tasks: Map<string, Map<string, string[]>>,
-): void => {
-  const msgLines = [`${title} 未完了タスク一覧`];
-  for (const [person, byDeadline] of tasks) {
-    const slackId = SLACK_ID_MAPPING.get(person);
-    const markup = slackId ? `<@${slackId}>` : person;
-    msgLines.push(`\n■${markup}担当：`);
-    for (const [deadline, taskList] of byDeadline) {
-      msgLines.push(`${deadline}〆`);
-      taskList.forEach((task) => {
-        msgLines.push(`  • ${task}`);
+const buildPendingTasksBlocks = (
+  pendingTasks: Map<string, Map<string, string[]>>,
+): object[] => {
+  const blocks: object[] = [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "📋 未了タスク一覧", emoji: true },
+    },
+    { type: "divider" },
+  ];
+
+  for (const [person, byDeadline] of pendingTasks) {
+    // 担当者ヘッダー
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `*👤 ${person}*` },
+    });
+
+    // 期限日ごとのタスクリスト
+    for (const [deadlineKey, tasks] of byDeadline) {
+      const taskLines = tasks.map((t) => `• ${t}`).join("\n");
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${deadlineKey}*\n${taskLines}`,
+        },
       });
     }
+
+    blocks.push({ type: "divider" });
   }
-  postToSlack(WEBHOOK_URL, msgLines.join("\n"));
+
+  return blocks;
+};
+
+/**
+ * 未了タスクをSlackにBlock Kit形式で送信する
+ * @param webhookUrl - Slack Incoming Webhook URL
+ * @param pendingTasks - collectPendingTasksの戻り値
+ */
+const postPendingTasksToSlack = (
+  webhookUrl: string,
+  pendingTasks: Map<string, Map<string, string[]>>,
+): void => {
+  const blocks = buildPendingTasksBlocks(pendingTasks);
+
+  const payload = JSON.stringify({ blocks });
+
+  UrlFetchApp.fetch(webhookUrl, {
+    method: "post",
+    contentType: "application/json",
+    payload,
+  });
 };
 
 /**
@@ -261,6 +300,7 @@ const checkCurrentTask = () => {
     const sheet = getSheetByName(title);
     if (!sheet) return;
     const tasks = collectPendingTasks(sheet, 7);
-    postCurrentTask(title, tasks);
+    if (tasks.size === 0) return;
+    postPendingTasksToSlack(WEBHOOK_URL, tasks);
   });
 };
