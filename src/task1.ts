@@ -1,19 +1,17 @@
 /**
  * カレンダーから1週間後の終日イベント一覧を取得する
- * @param calendar - カレンダーオブジェクト
  * @returns 終日イベントの配列
  */
-const getAllDayEventsNextWeek = (
-  calendar: GoogleAppsScript.Calendar.Calendar,
-): GoogleAppsScript.Calendar.CalendarEvent[] => {
-  const now = new Date();
-  const nextWeek = new Date(now);
-  nextWeek.setDate(now.getDate() + 7);
+const getAllDayEventsNextWeek =
+  (): GoogleAppsScript.Calendar.CalendarEvent[] => {
+    const now = new Date();
+    const nextWeek = new Date(now);
+    nextWeek.setDate(now.getDate() + 7);
 
-  return calendar
-    .getEventsForDay(nextWeek)
-    .filter((event) => event.isAllDayEvent());
-};
+    return CALENDAR.getEventsForDay(nextWeek).filter((event) =>
+      event.isAllDayEvent(),
+    );
+  };
 
 /**
  * TEMPLATEシートをコピーして新しいシートを作成する
@@ -25,7 +23,7 @@ const createSheetFromTemplate = (
 ): string => {
   const title = event.getTitle();
   const start = event.getStartTime();
-  const template = SHEET.getSheetByName("TEMPLATE");
+  const template = getSheetByName("TEMPLATE");
   if (!template) throw new Error("TEMPLATE sheet not found");
 
   const newSheet = template.copyTo(SHEET);
@@ -41,11 +39,7 @@ const createSheetFromTemplate = (
  * 翌週の終日イベントをSlackに通知する
  */
 const checkNextTask = () => {
-  const calendar = getCalendarById(CALENDAR_ID);
-  if (!calendar) {
-    return;
-  }
-  const events = getAllDayEventsNextWeek(calendar);
+  const events = getAllDayEventsNextWeek();
   if (events.length < 1) {
     return;
   }
@@ -123,5 +117,5 @@ const checkNextTask = () => {
     ],
   });
 
-  postToSlack(WEBHOOK_URL, blocks);
+  postToSlack(blocks);
 };

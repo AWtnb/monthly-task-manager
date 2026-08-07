@@ -14,6 +14,7 @@ const CALENDAR_ID = getProperty("CALENDAR_ID");
 const SHEET_ID = getProperty("SHEET_ID");
 const WEBHOOK_URL = getProperty("WEBHOOK_URL");
 const SHEET = SpreadsheetApp.openById(SHEET_ID);
+const CALENDAR = CalendarApp.getCalendarById(CALENDAR_ID);
 /**
  * シート名からシートオブジェクトを取得する
  * @param sheetName - シート名
@@ -24,22 +25,12 @@ const getSheetByName = (sheetName) => {
     return (_a = SHEET.getSheetByName(sheetName)) !== null && _a !== void 0 ? _a : null;
 };
 /**
- * カレンダーIDからカレンダーオブジェクトを取得する
- * @param calendarId - カレンダーID
- * @returns カレンダーオブジェクト
- */
-const getCalendarById = (calendarId) => {
-    var _a;
-    return (_a = CalendarApp.getCalendarById(calendarId)) !== null && _a !== void 0 ? _a : null;
-};
-/**
  * SlackのIncoming WebhookでメッセージをPOSTする
- * @param webhookUrl - Webhook URL
  * @param blocks: object[] - 投稿するメッセージのSlack Bot Kit形式データ
  */
-const postToSlack = (webhookUrl, blocks) => {
+const postToSlack = (blocks) => {
     const payload = JSON.stringify({ blocks });
-    UrlFetchApp.fetch(webhookUrl, {
+    UrlFetchApp.fetch(WEBHOOK_URL, {
         method: "post",
         contentType: "application/json",
         payload,

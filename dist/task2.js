@@ -1,17 +1,14 @@
 "use strict";
 /**
- * カレンダーから過去31日以内（当日除く）の終日イベントを取得する
- * @param calendar - カレンダーオブジェクト
+ * カレンダーから過去31日以内（当日含む）の終日イベントを取得する
  * @returns 終日イベントの配列
  */
-const getAllDayEventsWithinMonth = (calendar) => {
+const getAllDayEventsWithinMonth = () => {
     const now = new Date();
     const start = new Date(now);
     start.setDate(now.getDate() - 31);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return calendar
-        .getEvents(start, today)
-        .filter((event) => event.isAllDayEvent());
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    return CALENDAR.getEvents(start, end).filter((event) => event.isAllDayEvent());
 };
 /**
  * シートから担当者ごと・期限日ごとに未了工程を集約する
@@ -145,11 +142,7 @@ const buildPendingTasksBlocks = (title, sheetUrl, pendingTasks) => {
  * 現時点のタスクをSlackに通知する
  */
 const checkCurrentTask = () => {
-    const calendar = getCalendarById(CALENDAR_ID);
-    if (!calendar) {
-        return;
-    }
-    getAllDayEventsWithinMonth(calendar).forEach((event) => {
+    getAllDayEventsWithinMonth().forEach((event) => {
         const title = event.getTitle();
         const sheet = getSheetByName(title);
         if (!sheet)
@@ -159,6 +152,6 @@ const checkCurrentTask = () => {
             return;
         const sheetId = sheet.getSheetId();
         const sheetUrl = `${SHEET.getUrl()}?gid=${sheetId}`;
-        postToSlack(WEBHOOK_URL, buildPendingTasksBlocks(title, sheetUrl, tasks));
+        postToSlack(buildPendingTasksBlocks(title, sheetUrl, tasks));
     });
 };
