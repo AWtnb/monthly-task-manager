@@ -158,6 +158,9 @@ const buildPendingTasksBlocks = (title, sheetUrl, pendingTasks) => {
  * 現時点のタスクをSlackに通知する
  */
 const checkCurrentTask = () => {
+    const now = new Date();
+    if (now.getDay() === 0 || now.getDay() === 6 || isHoliday(now))
+        return;
     getAllDayEventsWithinMonth().forEach((event) => {
         const title = event.getTitle();
         const sheet = getSheetByName(title);

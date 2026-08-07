@@ -28,6 +28,37 @@ const getSheetByName = (
 };
 
 /**
+ * `HOLIDAYS` シートから祝日の一覧を取得する
+ * @returns 日付型の配列
+ */
+const getHolidays = (): Date[] => {
+  const sheet = SHEET.getSheetByName("HOLIDAYS");
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 1) return [];
+
+  const values = sheet.getRange(1, 1, lastRow, 1).getValues();
+  return values
+    .map((row) => row[0])
+    .filter((cell) => 0 < String(cell).trim().length)
+    .map((cell) => new Date(cell));
+};
+
+/**
+ * 祝日かどうかを判定する
+ * @param targetDate - 判定対象の日付
+ * @returns boolean - 祝日ならtrue、そうでなければfalse
+ */
+const isHoliday = (targetDate: Date): boolean => {
+  const targetYmd = Utilities.formatDate(targetDate, "Asia/Tokyo", "yyyyMMdd");
+
+  return getHolidays().some((holiday) => {
+    const holidayYmd = Utilities.formatDate(holiday, "Asia/Tokyo", "yyyyMMdd");
+    return holidayYmd === targetYmd;
+  });
+};
+
+/**
  * SlackのIncoming WebhookでメッセージをPOSTする
  * @param blocks: object[] - 投稿するメッセージのSlack Bot Kit形式データ
  */
