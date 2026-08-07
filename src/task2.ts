@@ -147,11 +147,13 @@ const buildPendingTasksBlocks = (
 
   for (const [person, byDeadline] of pendingTasks) {
     blocks.push({ type: "divider" });
+    const slackId = SLACK_ID_MAPPING.get(person);
+    const mention = slackId ? `<@${slackId}>` : person;
     const personHeader = {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `:white_check_mark: *Task of <@${SLACK_ID_MAPPING.get(person)}>*`,
+        text: `:white_check_mark: *Task of ${mention}*`,
       },
     };
     blocks.push(personHeader);
