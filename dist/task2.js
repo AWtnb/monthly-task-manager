@@ -11,6 +11,19 @@ const getAllDayEventsWithinMonth = () => {
     return CALENDAR.getEvents(start, end).filter((event) => event.isAllDayEvent());
 };
 /**
+ * 締切文字列を "yyyy/MM/dd" 形式のキーに変換する
+ * 不正な日付文字列の場合は "----/--/--" を返す
+ * @param deadline 締切日を表す文字列
+ * @returns フォーマット済みの日付キー、または "----/--/--"
+ */
+const parseDeadlineKey = (deadline) => {
+    const date = new Date(deadline);
+    if (Number.isNaN(date.getTime())) {
+        return "----/--/--";
+    }
+    return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy/MM/dd");
+};
+/**
  * シートから担当者ごと・期限日ごとに未了工程を集約する
  * @param sheet - 対象シート
  * @param dataStartRow - データ開始行（1始まり）
@@ -28,7 +41,7 @@ const collectPendingTasks = (sheet, dataStartRow) => {
         const [task, done, person, , , , deadline] = row;
         if (!person || done !== false)
             continue;
-        const deadlineKey = Utilities.formatDate(new Date(deadline), Session.getScriptTimeZone(), "yyyy/MM/dd");
+        const deadlineKey = parseDeadlineKey(deadline);
         if (!result.has(person)) {
             result.set(person, new Map());
         }
