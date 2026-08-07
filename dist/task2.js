@@ -51,7 +51,7 @@ const collectPendingTasks = (sheet, dataStartRow) => {
     }
     return result;
 };
-const SLACK_ID_MAPPING = (() => {
+const getSlackIdMapping = () => {
     const map = new Map();
     const sheet = getSheetByName("MEMBER");
     if (!sheet)
@@ -66,7 +66,7 @@ const SLACK_ID_MAPPING = (() => {
         map.set(name, slackId);
     }
     return map;
-})();
+};
 /**
  * collectPendingTasksの結果をSlack Block Kit形式に変換する
  * @param sheetUrl - シートのURL
@@ -107,9 +107,10 @@ const buildPendingTasksBlocks = (title, sheetUrl, pendingTasks) => {
             ],
         },
     ];
+    const mapping = getSlackIdMapping();
     for (const [person, byDeadline] of pendingTasks) {
         blocks.push({ type: "divider" });
-        const slackId = SLACK_ID_MAPPING.get(person);
+        const slackId = mapping.get(person);
         const mention = slackId ? `<@${slackId}>` : person;
         const personHeader = {
             type: "section",
