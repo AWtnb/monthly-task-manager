@@ -35,3 +35,18 @@ const getCalendarById = (
 ): GoogleAppsScript.Calendar.Calendar | null => {
   return CalendarApp.getCalendarById(calendarId) ?? null;
 };
+
+/**
+ * SlackのIncoming WebhookでメッセージをPOSTする
+ * @param webhookUrl - Webhook URL
+ * @param blocks: object[] - 投稿するメッセージのSlack Bot Kit形式データ
+ */
+const postToSlack = (webhookUrl: string, blocks: object[]): void => {
+  const payload = JSON.stringify({ blocks });
+
+  UrlFetchApp.fetch(webhookUrl, {
+    method: "post",
+    contentType: "application/json",
+    payload,
+  });
+};
