@@ -17,6 +17,8 @@ const getAllDayEventsWithinMonth = (
     .filter((event) => event.isAllDayEvent());
 };
 
+type PendingTasksByPerson = Map<string, Map<string, string[]>>;
+
 /**
  * シートから担当者ごと・期限日ごとに未了工程を集約する
  * @param sheet - 対象シート
@@ -26,7 +28,7 @@ const getAllDayEventsWithinMonth = (
 const collectPendingTasks = (
   sheet: GoogleAppsScript.Spreadsheet.Sheet,
   dataStartRow: number,
-): Map<string, Map<string, string[]>> => {
+): PendingTasksByPerson => {
   const lastRow = sheet.getLastRow();
   if (lastRow < dataStartRow) return new Map();
 
@@ -42,7 +44,7 @@ const collectPendingTasks = (
     Date,
   ][];
 
-  const result = new Map<string, Map<string, string[]>>();
+  const result: PendingTasksByPerson = new Map();
 
   for (const row of data) {
     const [task, done, person, , , , deadline] = row;
@@ -68,9 +70,11 @@ const collectPendingTasks = (
   // 各担当者のdeadlineをキーの文字列昇順（= 日付昇順）でソート
   for (const [person, byDeadline] of result) {
     const sorted = new Map(
-      [...byDeadline.entries()].sort(([a], [b]) =>
-        a < b ? -1 : a > b ? 1 : 0,
-      ),
+      [...byDeadline.entries()].sort(([a], [b]) => {
+        if (a < b) return -1;
+        if (b < a) return 1;
+        return 0;
+      }),
     );
     result.set(person, sorted);
   }
@@ -100,41 +104,76 @@ const SLACK_ID_MAPPING = (() => {
 
 /**
  * collectPendingTasksの結果をSlack Block Kit形式に変換する
+ * @param sheetUrl - シートのURL
  * @param pendingTasks - 担当者 → 期限日（昇順） → タスク一覧
  * @returns Slack Block Kit の blocks 配列
  */
 const buildPendingTasksBlocks = (
-  pendingTasks: Map<string, Map<string, string[]>>,
+  title: string,
+  sheetUrl: string,
+  pendingTasks: PendingTasksByPerson,
 ): object[] => {
   const blocks: object[] = [
     {
       type: "header",
-      text: { type: "plain_text", text: "📋 未了タスク一覧", emoji: true },
+      text: {
+        type: "plain_text",
+        text: `${title} 未了タスク一覧`,
+        emoji: true,
+      },
+      level: 1,
     },
-    { type: "divider" },
+    {
+      type: "rich_text",
+      elements: [
+        {
+          type: "rich_text_section",
+          elements: [
+            {
+              type: "link",
+              url: sheetUrl,
+              text: "シート",
+              style: {
+                bold: true,
+              },
+            },
+            {
+              type: "text",
+              text: "を確認しましょう！\n",
+            },
+          ],
+        },
+      ],
+    },
   ];
 
   for (const [person, byDeadline] of pendingTasks) {
-    // 担当者ヘッダー
-    blocks.push({
+    blocks.push({ type: "divider" });
+    const personHeader = {
       type: "section",
-      text: { type: "mrkdwn", text: `*👤 ${person}*` },
-    });
-
-    // 期限日ごとのタスクリスト
+      text: {
+        type: "mrkdwn",
+        text: `:white_check_mark: *Task of <@${SLACK_ID_MAPPING.get(person)}>*`,
+      },
+    };
+    blocks.push(personHeader);
     for (const [deadlineKey, tasks] of byDeadline) {
-      const taskLines = tasks.map((t) => `• ${t}`).join("\n");
-
-      blocks.push({
+      const deadlineHeader = {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*${deadlineKey}*\n${taskLines}`,
+          text: `*${deadlineKey}* 〆`,
         },
+      };
+      blocks.push(deadlineHeader);
+      blocks.push({
+        type: "context",
+        elements: tasks.map((task) => ({
+          type: "mrkdwn",
+          text: `• ${task}`,
+        })),
       });
     }
-
-    blocks.push({ type: "divider" });
   }
 
   return blocks;
@@ -155,6 +194,9 @@ const checkCurrentTask = () => {
     if (!sheet) return;
     const tasks = collectPendingTasks(sheet, 7);
     if (tasks.size === 0) return;
-    postToSlack(WEBHOOK_URL, buildPendingTasksBlocks(tasks));
+
+    const sheetId = sheet.getSheetId();
+    const sheetUrl = `${SHEET.getUrl()}?gid=${sheetId}`;
+    postToSlack(WEBHOOK_URL, buildPendingTasksBlocks(title, sheetUrl, tasks));
   });
 };
