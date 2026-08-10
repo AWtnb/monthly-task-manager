@@ -30,7 +30,8 @@ const createSheetFromTemplate = (event) => {
 };
 /**
  * 【定期実行】
- * 翌週の終日イベントをSlackに通知する
+ * 翌週までの終日イベントをSlackに通知する。
+ * すでにシートが作成されていればスキップする。
  */
 const checkUpcomingTask = () => {
     const events = getAllDayEventsWithinNextWeek();
