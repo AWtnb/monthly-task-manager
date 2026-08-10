@@ -5,6 +5,7 @@
     ".hg/store/**": true,
     "*/.git/objects/**": true,
     "*/.git/subtree-cache/**": true,
-    "*/.hg/store/**": true
+    "*/.hg/store/**": true,
+    "**/dist/**": false
   }
 }
