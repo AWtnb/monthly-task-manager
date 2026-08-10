@@ -21,9 +21,9 @@ const DEADLINE_UNDEFINED = "(日付未指定)";
 
 /**
  * 締切文字列を "yyyy/MM/dd" 形式のキーに変換する
- * 不正な日付文字列の場合は `（未指定）` を返す
+ * 不正な日付文字列の場合は `(日付未指定)` を返す
  * @param deadline 締切日を表す文字列
- * @returns フォーマット済みの日付キー、または `（未指定）`
+ * @returns フォーマット済みの日付キー、または `(日付未指定)`
  */
 const parseDeadlineKey = (deadline: string): string => {
   const date = new Date(deadline);
