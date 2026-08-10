@@ -32,7 +32,7 @@ const createSheetFromTemplate = (event) => {
  * 【定期実行】
  * 翌週の終日イベントをSlackに通知する
  */
-const checkNextTask = () => {
+const checkUpcomingTask = () => {
     const events = getAllDayEventsWithinNextWeek();
     if (events.length < 1) {
         return;
