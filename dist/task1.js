@@ -1,13 +1,14 @@
 "use strict";
 /**
- * カレンダーから1週間後の終日イベント一覧を取得する
+ * カレンダーから向こう1週間の終日イベント一覧を取得する
  * @returns 終日イベントの配列
  */
-const getAllDayEventsNextWeek = () => {
-    const now = new Date();
-    const nextWeek = new Date(now);
-    nextWeek.setDate(now.getDate() + 7);
-    return CALENDAR.getEventsForDay(nextWeek).filter((event) => event.isAllDayEvent());
+const getAllDayEventsWithinNextWeek = () => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    return CALENDAR.getEvents(start, end).filter((event) => event.isAllDayEvent());
 };
 /**
  * TEMPLATEシートをコピーして新しいシートを作成する
@@ -32,7 +33,7 @@ const createSheetFromTemplate = (event) => {
  * 翌週の終日イベントをSlackに通知する
  */
 const checkNextTask = () => {
-    const events = getAllDayEventsNextWeek();
+    const events = getAllDayEventsWithinNextWeek();
     if (events.length < 1) {
         return;
     }
