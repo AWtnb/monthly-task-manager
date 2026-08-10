@@ -17,16 +17,18 @@ const getAllDayEventsWithinMonth =
 
 type PendingTasksByPerson = Map<string, Map<string, string[]>>;
 
+const DEADLINE_UNDEFINED = "（未指定）";
+
 /**
  * 締切文字列を "yyyy/MM/dd" 形式のキーに変換する
- * 不正な日付文字列の場合は "----/--/--" を返す
+ * 不正な日付文字列の場合は `（未指定）` を返す
  * @param deadline 締切日を表す文字列
- * @returns フォーマット済みの日付キー、または "----/--/--"
+ * @returns フォーマット済みの日付キー、または `（未指定）`
  */
 const parseDeadlineKey = (deadline: string): string => {
   const date = new Date(deadline);
   if (Number.isNaN(date.getTime())) {
-    return "----/--/--";
+    return DEADLINE_UNDEFINED;
   }
   return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy/MM/dd");
 };
@@ -173,7 +175,10 @@ const buildPendingTasksBlocks = (
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*${deadlineKey}* 〆`,
+          text:
+            deadlineKey === DEADLINE_UNDEFINED
+              ? DEADLINE_UNDEFINED
+              : `*${deadlineKey}* 〆`,
         },
       };
       blocks.push(deadlineHeader);
