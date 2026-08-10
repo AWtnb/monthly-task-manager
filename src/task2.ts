@@ -17,7 +17,7 @@ const getAllDayEventsWithinMonth =
 
 type PendingTasksByPerson = Map<string, Map<string, string[]>>;
 
-const DEADLINE_UNDEFINED = "（未指定）";
+const DEADLINE_UNDEFINED = "(日付未指定)";
 
 /**
  * 締切文字列を "yyyy/MM/dd" 形式のキーに変換する
@@ -171,17 +171,18 @@ const buildPendingTasksBlocks = (
     };
     blocks.push(personHeader);
     for (const [deadlineKey, tasks] of byDeadline) {
-      const deadlineHeader = {
+      const deadlineHeader =
+        deadlineKey === DEADLINE_UNDEFINED
+          ? DEADLINE_UNDEFINED
+          : `${deadlineKey} 〆`;
+      const deadlineHeaderBlock = {
         type: "section",
         text: {
           type: "mrkdwn",
-          text:
-            deadlineKey === DEADLINE_UNDEFINED
-              ? DEADLINE_UNDEFINED
-              : `*${deadlineKey}* 〆`,
+          text: `*${deadlineHeader}*`,
         },
       };
-      blocks.push(deadlineHeader);
+      blocks.push(deadlineHeaderBlock);
       blocks.push({
         type: "context",
         elements: tasks.map((task) => ({
