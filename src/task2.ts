@@ -78,9 +78,12 @@ const collectPendingTasks = (
   }
 
   // 各担当者のdeadlineをキーの文字列昇順（= 日付昇順）でソート
+  // （ただし(日付未指定)は必ず最後に配置する）
   for (const [person, byDeadline] of result) {
     const sorted = new Map(
       [...byDeadline.entries()].sort(([a], [b]) => {
+        if (a === DEADLINE_UNDEFINED) return 1;
+        if (b === DEADLINE_UNDEFINED) return -1;
         if (a < b) return -1;
         if (b < a) return 1;
         return 0;
@@ -128,7 +131,7 @@ const buildPendingTasksBlocks = (
       type: "header",
       text: {
         type: "plain_text",
-        text: `${title} 未了タスク一覧`,
+        text: `:spiral_calendar_pad: ${title} 未了タスク一覧`,
         emoji: true,
       },
       level: 1,
