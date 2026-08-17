@@ -68,12 +68,13 @@ const collectPendingTasks = (
   if (lastRow < dataStartRow) return new Map();
 
   const data = sheet
-    .getRange(dataStartRow, 1, lastRow - dataStartRow + 1, 7)
+    .getRange(dataStartRow, 1, lastRow - dataStartRow + 1, 8)
     .getValues() as [
     string,
     boolean,
     string,
     unknown,
+    string,
     string,
     unknown,
     string,
@@ -82,8 +83,15 @@ const collectPendingTasks = (
   const result: PendingTasksByPerson = new Map();
 
   for (const row of data) {
-    const [task, done, person, , start, , deadline] = row;
+    const [task, done, person, , start, predecessor, , deadline] = row;
     if (!person || done !== false || isFuture(start)) continue;
+
+    if (
+      predecessor &&
+      data.filter((row) => row[0] === predecessor).some((d) => d[1] === false)
+    ) {
+      continue;
+    }
 
     const deadlineKey = parseDeadlineKey(deadline);
 
