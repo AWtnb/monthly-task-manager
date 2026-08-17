@@ -34,7 +34,28 @@ const parseDeadlineKey = (deadline: string): string => {
 };
 
 /**
+ * 実行時点から見て未来かどうかを判定する
+ * 開始日が空文字・不正な日付の場合は「未来扱いしない」（falseを返す）
+ * 時刻部分は無視し、日付のみで比較する（当日は「未来扱いしない」）
+ * @param start - 開始日を表す値
+ * @returns 開始日が今日より未来ならtrue
+ */
+const isFuture = (start: string): boolean => {
+  if (!start) return false;
+
+  const startDate = new Date(start);
+  if (Number.isNaN(startDate.getTime())) return false;
+  startDate.setHours(0, 0, 0, 0);
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  return now < startDate;
+};
+
+/**
  * シートから担当者ごと・期限日ごとに未了工程を集約する
+ * 開始日が未来（まだ開始していない）タスクは対象外とする
  * @param sheet - 対象シート
  * @param dataStartRow - データ開始行（1始まり）
  * @returns 担当者 → 期限日（昇順） → タスク一覧
@@ -53,7 +74,7 @@ const collectPendingTasks = (
     boolean,
     string,
     unknown,
-    unknown,
+    string,
     unknown,
     string,
   ][];
@@ -61,8 +82,8 @@ const collectPendingTasks = (
   const result: PendingTasksByPerson = new Map();
 
   for (const row of data) {
-    const [task, done, person, , , , deadline] = row;
-    if (!person || done !== false) continue;
+    const [task, done, person, , start, , deadline] = row;
+    if (!person || done !== false || isFuture(start)) continue;
 
     const deadlineKey = parseDeadlineKey(deadline);
 
